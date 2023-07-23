@@ -169,9 +169,12 @@ const main = async () => {
 
   console.log("Executed depositForBurn:", srcTask.task.transactionHash);
 
-  const receipt = await provider.getTransactionReceipt(
-    srcTask.task.transactionHash
+  const receipt = await poll(
+    () => provider.getTransactionReceipt(srcTask.task.transactionHash),
+    (receipt) => receipt !== null,
+    1000
   );
+
   if (!receipt) throw new Error("Failed to find transaction");
 
   const topic = ethers.utils.solidityKeccak256(
