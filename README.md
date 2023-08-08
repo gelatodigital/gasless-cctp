@@ -1,5 +1,5 @@
 # Gasless Cross-Chain Transfer Protocol
-This project demonstrates gasless token transfer using [Circle's CCTP](https://developers.circle.com/stablecoin/docs) and [Gelato Relay](https://developers.circle.com/stablecoin/docs).
+This project demonstrates gasless token transfer using [Circle's CCTP](https://developers.circle.com/stablecoin/docs) and [Gelato Relay](https://www.gelato.network/relay).
 
 ## What is CCTP?
 *Cross-Chain Transfer Protocol (CCTP) is a permissionless on-chain utility that facilitates USDC transfers between blockchains via native burning and minting.*
@@ -26,29 +26,29 @@ Eliminating the dependence on native tokens gives us infinitely more freedom.
 
 **Implications**:
 - USDC acts as an interoperability layer connecting multiple chains
-- Eliminate the need for per-chain native tokens
+- Eliminates the need for per-chain native tokens
 
 > **Note**
-> *Gasless* refers to the absence of native tokens for transaction fee payment.  
+> *Gasless* refers to the absence of native tokens during transaction fee payment.  
 > Gas is still paid, but abstracted away from the user and compensated in USDC.
 
 ## Gasless CCTP Flow
 1. Sign two off-chain [transfer authorization](https://eips.ethereum.org/EIPS/eip-3009) signatures.  
    These authenticate token transfers, covering the base transfer amount and relay fee.  
-   [Source Code](https://github.com/gelatodigital/relay-gasless-cctp/blob/main/src/cctp-sdk/index.ts#L50-L64)
+   [Code Snippet](https://github.com/gelatodigital/relay-gasless-cctp/blob/main/src/cctp-sdk/index.ts#L50-L64)
 2. Relay a [`depositForBurn`](https://developers.circle.com/stablecoin/docs/cctp-tokenmessenger#depositforburn) transaction on the source chain.  
-   This burns the tokens and emits `MessageSent` which is observed by Circle's attestation service.  
-   [Source Code](https://github.com/gelatodigital/relay-gasless-cctp/blob/main/src/cctp-sdk/index.ts#L69-L81)
+   This burns the tokens and emits a `MessageSent` event which is observed by Circle.  
+   [Code Snippet](https://github.com/gelatodigital/relay-gasless-cctp/blob/main/src/cctp-sdk/index.ts#L69-L81)
 3. Fetch the attestation signature from the attestation API endpoint.  
-   [Source Code](https://github.com/gelatodigital/relay-gasless-cctp/blob/main/src/cctp-sdk/index.ts#L83-L108)
+   [Code Snippet](https://github.com/gelatodigital/relay-gasless-cctp/blob/main/src/cctp-sdk/index.ts#L83-L108)
 4. Relay a [`receiveMessage`](https://developers.circle.com/stablecoin/docs/cctp-messagetransmitter#receivemessage) transaction on the destination chain.  
    This uses the attestation signature in order to mint the burnt tokens 1:1.  
-   [Source Code](https://github.com/gelatodigital/relay-gasless-cctp/blob/main/src/cctp-sdk/index.ts#L110-L123)
+   [Code Snippet](https://github.com/gelatodigital/relay-gasless-cctp/blob/main/src/cctp-sdk/index.ts#L110-L123)
 
 An intermediary [`Forwarder`](https://github.com/gelatodigital/relay-gasless-cctp/blob/main/contracts/Forwarder.sol) contract facilitates relay fee payment. This is deployed once on each CCTP-compatible network allowing for any-any chain transfers.
 
 ## Implementation
-[Implementation](https://github.com/gelatodigital/relay-gasless-cctp/blob/main/scripts/transfer.ts#L11-L17) is as simple as importing the [``cctp-sdk``]() and calling ``transfer``.
+[Implementation](https://github.com/gelatodigital/relay-gasless-cctp/blob/main/scripts/transfer.ts#L11-L17) is as simple as importing the [``cctp-sdk``](https://github.com/gelatodigital/relay-gasless-cctp/tree/main/src/cctp-sdk) and calling ``transfer``.
 
 ```ts
 await transfer(
