@@ -24,13 +24,18 @@ const config: HardhatUserConfig = {
   networks: {
     hardhat: {
       forking: {
-        url: "https://goerli.gateway.tenderly.co",
+        url: "https://rpc.ankr.com/arbitrum",
       },
-      chainId: 5,
+      chainId: 42161,
     },
-    goerli: {
-      chainId: 5,
-      url: "https://goerli.gateway.tenderly.co",
+    avalanche: {
+      chainId: 43114,
+      url: "https://rpc.ankr.com/avalanche",
+      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
+    },
+    arbitrum: {
+      chainId: 42161,
+      url: "https://rpc.ankr.com/arbitrum",
       accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
     },
   },
