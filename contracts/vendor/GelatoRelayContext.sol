@@ -12,6 +12,7 @@ import {
 uint256 constant _ERC2771_FEE_COLLECTOR_START = 92;
 uint256 constant _ERC2771_FEE_TOKEN_START = 72;
 uint256 constant _ERC2771_FEE_START = 52;
+uint256 constant _ERC2771_MSG_SENDER_START = 20;
 
 uint256 constant _FEE_COLLECTOR_START = 72;
 uint256 constant _FEE_TOKEN_START = 52;
@@ -44,6 +45,16 @@ function _getFeeTokenRelayContextERC2771() pure returns (address feeToken) {
 function _getFeeRelayContextERC2771() pure returns (uint256 fee) {
     assembly {
         fee := calldataload(sub(calldatasize(), _ERC2771_FEE_START))
+    }
+}
+
+// solhint-disable-next-line private-vars-leading-underscore
+function _getMsgSenderRelayContextERC2771() pure returns (address _msgSender) {
+    assembly {
+        _msgSender := shr(
+            96,
+            calldataload(sub(calldatasize(), _ERC2771_MSG_SENDER_START))
+        )
     }
 }
 
@@ -102,6 +113,13 @@ abstract contract GelatoRelayContext is
             "GelatoRelayContext._transferRelayFeeCappedERC2771: maxFee"
         );
         _getFeeTokenERC2771().transfer(_getFeeCollectorERC2771(), fee);
+    }
+
+    function _getMsgSender() internal view virtual returns (address) {
+        return
+            _isGelatoRelayERC2771(msg.sender)
+                ? _getMsgSenderRelayContextERC2771()
+                : msg.sender;
     }
 
     function _getFeeCollectorERC2771() internal pure returns (address) {

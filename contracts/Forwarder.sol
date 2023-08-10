@@ -26,18 +26,22 @@ contract Forwarder is GelatoRelayContext {
         uint32 destinationDomain,
         bytes calldata receiveAuthorization
     ) external onlyGelatoRelayERC2771 {
+        address owner = abi.decode(receiveAuthorization, (address));
+        require(
+            _getMsgSender() == owner,
+            "Forwarder.deposit: signer must be authorizer"
+        );
+
         _receiveWithAuthorization(receiveAuthorization);
         _transferRelayFeeCappedERC2771(maxFee);
 
-        bytes32 owner = abi.decode(receiveAuthorization, (bytes32));
         uint256 remaining = token.balanceOf(address(this));
-
         token.approve(address(tokenMessenger), remaining);
 
         tokenMessenger.depositForBurn(
             remaining,
             destinationDomain,
-            owner,
+            _addressToBytes32(owner),
             address(token)
         );
     }
@@ -72,5 +76,9 @@ contract Forwarder is GelatoRelayContext {
                 revert(add(result, 32), mload(result))
             }
         }
+    }
+
+    function _addressToBytes32(address addr) internal pure returns (bytes32) {
+        return bytes32(uint256(uint160(addr)));
     }
 }
