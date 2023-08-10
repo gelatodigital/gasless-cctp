@@ -4,9 +4,7 @@ pragma solidity 0.8.19;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ITokenMessenger} from "./interfaces/ITokenMessenger.sol";
 import {IMessageTransmitter} from "./interfaces/IMessageTransmitter.sol";
-import {
-    GelatoRelayContext
-} from "@gelatonetwork/relay-context/contracts/GelatoRelayContext.sol";
+import {GelatoRelayContext} from "./vendor/GelatoRelayContext.sol";
 
 contract Forwarder is GelatoRelayContext {
     IERC20 public immutable token;
@@ -27,11 +25,11 @@ contract Forwarder is GelatoRelayContext {
         uint256 maxFee,
         uint32 destinationDomain,
         bytes calldata receiveAuthorization
-    ) external onlyGelatoRelay {
+    ) external onlyGelatoRelayERC2771 {
         _receiveWithAuthorization(receiveAuthorization);
-        _transferRelayFeeCapped(maxFee);
+        _transferRelayFeeCappedERC2771(maxFee);
 
-        bytes32 owner = abi.decode(receiveAuthorization[0:32], (bytes32));
+        bytes32 owner = abi.decode(receiveAuthorization, (bytes32));
         uint256 remaining = token.balanceOf(address(this));
 
         token.approve(address(tokenMessenger), remaining);
@@ -54,7 +52,7 @@ contract Forwarder is GelatoRelayContext {
         _receiveWithAuthorization(receiveAuthorization);
         _transferRelayFee();
 
-        address owner = abi.decode(receiveAuthorization[0:32], (address));
+        address owner = abi.decode(receiveAuthorization, (address));
         uint256 remaining = token.balanceOf(address(this));
 
         token.transfer(owner, remaining);

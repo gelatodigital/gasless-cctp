@@ -1,7 +1,12 @@
 import { ethers } from "ethers";
 import { jetch, poll } from "./helper";
 import { CIRCLE_API, GELATO_API, CHAIN } from "./constants";
-import { CallWithSyncFeeRequest, GelatoRelay } from "@gelatonetwork/relay-sdk";
+import {
+  CallWithSyncFeeERC2771Request,
+  CallWithSyncFeeRequest,
+  RelayResponse,
+  GelatoRelay,
+} from "@gelatonetwork/relay-sdk";
 import ForwarderAbi from "./abi/Forwarder.json";
 import EIP3009Abi from "./abi/EIP3009.json";
 
@@ -77,7 +82,8 @@ export const transfer = async (
     srcChain.forwarder,
     deposit,
     srcChainId,
-    srcChain.usdc
+    srcChain.usdc,
+    signer
   );
 
   const receipt = await poll(
@@ -104,7 +110,7 @@ export const transfer = async (
   const { attestation } = await poll<AttestationStatus>(
     () => jetch(`${CIRCLE_API}/attestations/${messageHash}`),
     ({ status }) => status === AttestationState.Complete,
-    15000
+    30000
   );
 
   const withdraw = forwarder.encodeFunctionData("withdraw", [
@@ -179,18 +185,12 @@ const relayAndWait = async (
   target: string,
   data: string,
   chainId: number,
-  feeToken: string
+  feeToken: string,
+  signer?: ethers.Wallet
 ): Promise<string> => {
-  const request: CallWithSyncFeeRequest = {
-    chainId,
-    target,
-    data,
-    feeToken,
-  };
-
-  const { taskId } = await relay.callWithSyncFee(request, {
-    retries: 0,
-  });
+  const { taskId } = await (signer
+    ? callWithSyncFeeERC2771(signer, relay, target, data, chainId, feeToken)
+    : callWithSyncFee(relay, target, data, chainId, feeToken));
 
   const { task } = await poll<TaskStatus>(
     () => jetch(GELATO_API + "/tasks/status/" + taskId),
@@ -201,4 +201,46 @@ const relayAndWait = async (
   );
 
   return task.transactionHash;
+};
+
+const callWithSyncFee = (
+  relay: GelatoRelay,
+  target: string,
+  data: string,
+  chainId: number,
+  feeToken: string
+): Promise<RelayResponse> => {
+  const request: CallWithSyncFeeRequest = {
+    chainId,
+    target,
+    data,
+    feeToken,
+    isRelayContext: true,
+  };
+
+  return relay.callWithSyncFee(request, {
+    retries: 0,
+  });
+};
+
+const callWithSyncFeeERC2771 = (
+  signer: ethers.Wallet,
+  relay: GelatoRelay,
+  target: string,
+  data: string,
+  chainId: number,
+  feeToken: string
+): Promise<RelayResponse> => {
+  const request: CallWithSyncFeeERC2771Request = {
+    chainId,
+    target,
+    data,
+    feeToken,
+    user: signer.address,
+    isRelayContext: true,
+  };
+
+  return relay.callWithSyncFeeERC2771(request, signer, {
+    retries: 0,
+  });
 };
