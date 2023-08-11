@@ -26,7 +26,9 @@ contract Forwarder is GelatoRelayContext {
         uint32 destinationDomain,
         bytes calldata receiveAuthorization
     ) external onlyGelatoRelayERC2771 {
-        address owner = abi.decode(receiveAuthorization, (address));
+        _requireSelector(receiveAuthorization, Forwarder.deposit.selector);
+
+        address owner = _decodeOwner(receiveAuthorization);
         require(
             _getMsgSender() == owner,
             "Forwarder.deposit: signer must be authorizer"
@@ -51,12 +53,14 @@ contract Forwarder is GelatoRelayContext {
         bytes calldata attestation,
         bytes calldata receiveAuthorization
     ) external onlyGelatoRelay {
+        _requireSelector(receiveAuthorization, Forwarder.withdraw.selector);
+
         messageTransmitter.receiveMessage(message, attestation);
 
         _receiveWithAuthorization(receiveAuthorization);
         _transferRelayFee();
 
-        address owner = abi.decode(receiveAuthorization, (address));
+        address owner = _decodeOwner(receiveAuthorization);
         uint256 remaining = token.balanceOf(address(this));
 
         token.transfer(owner, remaining);
@@ -76,6 +80,23 @@ contract Forwarder is GelatoRelayContext {
                 revert(add(result, 32), mload(result))
             }
         }
+    }
+
+    function _requireSelector(
+        bytes calldata authorization,
+        bytes4 selector
+    ) internal pure {
+        bytes4 nonceSelector = bytes4(authorization[160:164]);
+        require(
+            nonceSelector == selector,
+            "Forwarder._requireSelector: invalid selector"
+        );
+    }
+
+    function _decodeOwner(
+        bytes calldata authorization
+    ) internal pure returns (address) {
+        return address(uint160(uint256(bytes32(authorization))));
     }
 
     function _addressToBytes32(address addr) internal pure returns (bytes32) {

@@ -57,7 +57,8 @@ export const transfer = async (
     srcChain.usdc,
     amount,
     srcChain.forwarder,
-    srcChainId
+    srcChainId,
+    "0x9b94f9a1"
   );
 
   const withdrawAuthorization = await buildReceiveWithAuthorization(
@@ -65,7 +66,8 @@ export const transfer = async (
     dstChain.usdc,
     dstMaxFee,
     dstChain.forwarder,
-    dstChainId
+    dstChainId,
+    "0xd0f48715"
   );
 
   const relay = new GelatoRelay();
@@ -133,7 +135,8 @@ const buildReceiveWithAuthorization = async (
   token: string,
   value: bigint,
   to: string,
-  chainId: number
+  chainId: number,
+  selector: string
 ): Promise<string> => {
   const domain: ethers.TypedDataDomain = {
     name: "USD Coin",
@@ -153,7 +156,14 @@ const buildReceiveWithAuthorization = async (
     ],
   };
 
-  const nonce = ethers.utils.randomBytes(32);
+  if (selector.length !== 10) throw new Error("Invalid function selector");
+
+  const selectorArr = Uint8Array.from(
+    Buffer.from(selector.substring(2), "hex")
+  );
+  const saltArr = ethers.utils.randomBytes(28);
+  const nonce = new Uint8Array([...selectorArr, ...saltArr]);
+
   const deadline = Math.floor(Date.now() / 1000) + 60 * 60;
 
   const args = {
