@@ -440,7 +440,7 @@
     "@ethersproject/properties" "^5.7.0"
     "@ethersproject/strings" "^5.7.0"
 
-"@gelatonetwork/relay-context@^3.0.0":
+"@gelatonetwork/relay-context@3.0.0":
   version "3.0.0"
   resolved "https://registry.yarnpkg.com/@gelatonetwork/relay-context/-/relay-context-3.0.0.tgz#24e9e6893e345b1e2f9258355fc6e51eb602c371"
   integrity sha512-8po1o6dTFdNzcK38z6lw9aYE7STxliTfBpyA03jsGnlm5umpuImQ85IJuAs6FWo35xfbcxulwoLx9BRCQpEkFQ==

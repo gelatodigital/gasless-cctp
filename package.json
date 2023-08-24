@@ -19,7 +19,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@gelatonetwork/relay-context": "^3.0.0",
+    "@gelatonetwork/relay-context": "3.0.0",
     "@gelatonetwork/relay-sdk": "4.0.0",
     "@nomicfoundation/hardhat-chai-matchers": "1.0.6",
     "@nomicfoundation/hardhat-network-helpers": "1.0.8",
