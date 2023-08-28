@@ -9,9 +9,9 @@ const main = async () => {
   const wallet = new ethers.Wallet(PRIVATE_KEY, ethers.provider);
 
   await transfer(
-    ethers.utils.parseUnits("10", 6).toBigInt(),
-    ethers.utils.parseUnits("1", 6).toBigInt(),
-    ethers.utils.parseUnits("1", 6).toBigInt(),
+    ethers.parseUnits("3", 6),
+    ethers.parseUnits("1", 6),
+    ethers.parseUnits("1", 6),
     CHAIN_ID.arbitrum,
     wallet
   );

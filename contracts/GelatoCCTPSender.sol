@@ -6,6 +6,7 @@ import {
 } from "@gelatonetwork/relay-context/contracts/GelatoRelayContextERC2771.sol";
 import {ITokenMessenger} from "./interfaces/ITokenMessenger.sol";
 import {IEIP3009Token} from "./interfaces/IEIP3009Token.sol";
+import {Authorization} from "./types/Authorization.sol";
 
 contract GelatoCCTPSender is GelatoRelayContextERC2771 {
     IEIP3009Token public immutable token;
@@ -16,26 +17,11 @@ contract GelatoCCTPSender is GelatoRelayContextERC2771 {
         tokenMessenger = _tokenMessenger;
     }
 
-    /// @dev GelatoRelayERC2771 meta-tx compatible fn to send tokens via CCTP
-    /// @param _maxGelatoRelayFee Gelato Relay userSigned maxFee
-    /// @param _destinationDomain CCTP depositForBurn destination
-    /// @param _value IEIP3009Token total transfer amount + GelatoRelay maxFee
-    /// @param _validAfter IEIP3009Token
-    /// @param _validBefore IEIP3009Token
-    /// @param _nonce IEIP3009Token
-    /// @param _v IEIP3009Token
-    /// @param _r IEIP3009Token
-    /// @param _s IEIP3009Token
     function depositForBurn(
         uint256 _value,
-        uint256 _validAfter,
-        uint256 _validBefore,
-        bytes32 _nonce,
-        uint8 _v,
-        bytes32 _r,
-        bytes32 _s,
-        uint256 _maxGelatoRelayFee,
-        uint32 _destinationDomain
+        uint256 _maxGelatoFee,
+        uint32 _destinationDomain,
+        Authorization calldata _authorization
     ) external onlyGelatoRelayERC2771 {
         address owner = _getMsgSender();
 
@@ -43,23 +29,21 @@ contract GelatoCCTPSender is GelatoRelayContextERC2771 {
             owner,
             address(this),
             _value,
-            _validAfter,
-            _validBefore,
-            _nonce,
-            _v,
-            _r,
-            _s
+            _authorization.validAfter,
+            _authorization.validBefore,
+            _authorization.nonce,
+            _authorization.v,
+            _authorization.r,
+            _authorization.s
         );
 
-        _transferRelayFeeCapped(_maxGelatoRelayFee);
+        _transferRelayFeeCapped(_maxGelatoFee);
 
-        // Assumption: same as balanceOf but more gas savings
-        uint256 remainderAfterFee = _value - _getFee();
-
-        token.approve(address(tokenMessenger), remainderAfterFee);
+        uint256 remaining = _value - _getFee();
+        token.approve(address(tokenMessenger), remaining);
 
         tokenMessenger.depositForBurn(
-            remainderAfterFee,
+            remaining,
             _destinationDomain,
             _addressToBytes32(owner),
             address(token)
