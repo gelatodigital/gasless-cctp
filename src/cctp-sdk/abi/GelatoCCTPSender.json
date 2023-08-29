@@ -1,3 +1,104 @@
 [
-  "function depositForBurn(uint256 _value,uint256 _maxGelatoFee,uint32 _destinationDomain,(uint256 validAfter,uint256 validBefore,bytes32 nonce,uint8 v,bytes32 r,bytes32 s))"
+  {
+    "inputs": [
+      {
+        "internalType": "contract IEIP3009Token",
+        "name": "_token",
+        "type": "address"
+      },
+      {
+        "internalType": "contract ITokenMessenger",
+        "name": "_tokenMessenger",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_value",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_maxGelatoFee",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_destinationDomain",
+        "type": "uint32"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "validAfter",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "validBefore",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "nonce",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint8",
+            "name": "v",
+            "type": "uint8"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "r",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "s",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct Authorization",
+        "name": "_authorization",
+        "type": "tuple"
+      }
+    ],
+    "name": "depositForBurn",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "token",
+    "outputs": [
+      {
+        "internalType": "contract IEIP3009Token",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "tokenMessenger",
+    "outputs": [
+      {
+        "internalType": "contract ITokenMessenger",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
 ]

@@ -7,39 +7,15 @@ import {
   RelayResponse,
   GelatoRelay,
 } from "@gelatonetwork/relay-sdk";
-import SenderAbi from "./abi/GelatoCCTPSender.json";
-import ReceiverAbi from "./abi/GelatoCCTPReceiver.json";
-
-enum TaskState {
-  Success = "ExecSuccess",
-  Cancelled = "Cancelled",
-}
-
-enum AttestationState {
-  Pending = "pending",
-  Complete = "complete",
-}
-
-interface TaskStatus {
-  task: {
-    taskState: TaskState;
-    transactionHash: string;
-  };
-}
-
-interface AttestationStatus {
-  status: AttestationState;
-  attestation: string;
-}
-
-interface Authorization {
-  validAfter: number;
-  validBefore: number;
-  nonce: Uint8Array;
-  v: number;
-  r: string;
-  s: string;
-}
+import {
+  TaskState,
+  TaskStatus,
+  AttestationState,
+  AttestationStatus,
+  Authorization,
+} from "./types";
+import GelatoCCTPSenderAbi from "./abi/GelatoCCTPSender.json";
+import GelatoCCTPReceiverAbi from "./abi/GelatoCCTPReceiver.json";
 
 export const transfer = async (
   amount: bigint,
@@ -81,10 +57,10 @@ export const transfer = async (
 
   const relay = new GelatoRelay();
 
-  const sender = new ethers.Interface(SenderAbi);
-  const receiver = new ethers.Interface(ReceiverAbi);
+  const gelatoSender = new ethers.Interface(GelatoCCTPSenderAbi);
+  const gelatoReceiver = new ethers.Interface(GelatoCCTPReceiverAbi);
 
-  const depositForBurn = sender.encodeFunctionData("depositForBurn", [
+  const depositForBurn = gelatoSender.encodeFunctionData("depositForBurn", [
     amount,
     srcMaxFee,
     dstChain.domain,
@@ -131,7 +107,7 @@ export const transfer = async (
     30 * 60 * 1_000
   );
 
-  const receiveMessage = receiver.encodeFunctionData("receiveMessage", [
+  const receiveMessage = gelatoReceiver.encodeFunctionData("receiveMessage", [
     signer.address,
     dstMaxFee,
     messageBytes,

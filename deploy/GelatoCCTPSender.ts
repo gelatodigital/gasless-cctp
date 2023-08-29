@@ -1,27 +1,22 @@
-import { deployments, getChainId, getNamedAccounts } from "hardhat";
+import hre from "hardhat";
 import { DeployFunction } from "hardhat-deploy/types";
-import { ADDRESSES } from "../shared/constants";
 
-const name = "GelatoCCTPSender";
+const isHardhat = hre.network.name === "hardhat";
 
 const func: DeployFunction = async () => {
-  const { deploy } = deployments;
-  const { deployer } = await getNamedAccounts();
+  const { deployer, usdc, tokenMessenger } = await hre.getNamedAccounts();
 
-  const chainId = await getChainId();
-  const address = ADDRESSES[chainId];
+  if (!deployer || !usdc || !tokenMessenger)
+    throw new Error("Unsupported network");
 
-  if (!address) throw new Error("Unsupported network");
-
-  const { usdc, tokenMessenger } = address;
-
-  await deploy(name, {
+  await hre.deployments.deploy("GelatoCCTPSender", {
     from: deployer,
     args: [usdc, tokenMessenger],
-    log: true,
+    log: !isHardhat,
   });
 };
 
-func.tags = [name];
+func.tags = ["GelatoCCTPSender"];
+func.skip = async () => !isHardhat;
 
 export default func;
