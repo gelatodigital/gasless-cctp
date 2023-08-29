@@ -12,7 +12,7 @@ export const poll = async <Type>(
   const expiry = Date.now() + timeout;
   let result = await fn();
 
-  while (!pred(result) || Date.now() > expiry) {
+  while (!pred(result) && Date.now() < expiry) {
     await wait(interval);
     result = await fn();
   }
