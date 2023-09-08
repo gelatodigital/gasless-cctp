@@ -1,27 +1,17 @@
+import { NETWORKS } from "../../src/cctp-sdk/constants";
+import { CallWithSyncFeeRequest } from "@gelatonetwork/relay-sdk";
+import { ITransferWithAttestation, ITransfer, TaskState } from "./types";
+import { getAttestation, getRelayTaskStatus, postRelayRequest } from "./api";
 import { ethers } from "ethers";
-import { join } from "./helper";
-import {
-  GelatoCCTPReceiver__factory,
-  GelatoCCTPSender__factory,
-  IMessageTransmitter__factory,
-} from "../../typechain";
 import {
   Web3Function,
   Web3FunctionContext,
 } from "@gelatonetwork/web3-functions-sdk";
 import {
-  ITransferWithAttestation,
-  AttestationStatus,
-  IRelayRequest,
-  IAttestation,
-  ITransfer,
-} from "./types";
-import {
-  CONSTANTS,
-  GELATO_API,
-  CIRCLE_API,
-} from "../../src/cctp-sdk/constants";
-import ky from "ky";
+  GelatoCCTPReceiver__factory,
+  GelatoCCTPSender__factory,
+  IMessageTransmitter__factory,
+} from "../../typechain";
 
 (BigInt.prototype as any).toJSON = function () {
   return this.toString();
@@ -29,125 +19,179 @@ import ky from "ky";
 
 Web3Function.onRun(async (context: Web3FunctionContext) => {
   // index events from one network at a time
-  // execute transfers from one network at a time
-  const indexStr = await context.storage.get("index");
-  const index = indexStr ? parseInt(indexStr) : 0;
+  // execute transfers from the current network
+  const networkIndexStr = await context.storage.get("network");
+  const networkIndex = networkIndexStr ? Number(networkIndexStr) : 0;
 
-  const nextindex = (index + 1) % Object.keys(CONSTANTS).length;
-  await context.storage.set("index", nextindex.toString());
+  // set next index immediately
+  // if any subsequent operation fails we still serve other networks
+  const nextNetworkIndex = (networkIndex + 1) % Object.keys(NETWORKS).length;
+  await context.storage.set("network", nextNetworkIndex.toString());
 
-  const [chainId, constants] = Object.entries(CONSTANTS)[index];
+  const [chainId, network] = Object.entries(NETWORKS)[networkIndex];
   const provider = await context.multiChainProvider.chainId(Number(chainId));
 
-  const toBlock = await provider.getBlockNumber();
-  const fromBlockStr = await context.storage.get(chainId);
-  const fromBlock = fromBlockStr ? parseInt(fromBlockStr) : toBlock;
+  // event indexing contains no reorg protection
+  // this can be implemented via block confirmations
+  const currentBlock = await provider.getBlockNumber();
+  const lastBlockStr = await context.storage.get(chainId);
+  const lastBlock = lastBlockStr ? Number(lastBlockStr) : currentBlock;
 
+  if (!lastBlockStr)
+    await context.storage.set(chainId, currentBlock.toString());
+
+  // if no blocks have passed since last execution, return early
+  // no reason to check attestations since the attestation service waits for new blocks
+  if (currentBlock === lastBlock)
+    return { canExec: false, message: "No blocks to index" };
+
+  // get existing pending transfers and relay tasks
   const pendingStr = await context.storage.get("pending");
-  const pending: ITransfer[] = pendingStr ? JSON.parse(pendingStr) : [];
+  let pending: ITransfer[] = pendingStr ? JSON.parse(pendingStr) : [];
 
+  const taskIdsStr = await context.storage.get("tasks");
+  let taskIds: string[] = taskIdsStr ? JSON.parse(taskIdsStr) : [];
+
+  // instantiate all contracts on the current network
   const runner = { provider: provider as any };
 
-  const messageTransmitter = IMessageTransmitter__factory.connect(
-    constants.messageTransmitter,
+  const circleMessageTransmitter = IMessageTransmitter__factory.connect(
+    network.circleMessageTransmitter,
     runner
   );
 
-  const gelatoReceiver = GelatoCCTPReceiver__factory.connect(
-    constants.gelatoReceiver,
+  const gelatoCCTPReceiver = GelatoCCTPReceiver__factory.connect(
+    network.gelatoCCTPReceiver,
     runner
   );
 
-  const gelatoSender = GelatoCCTPSender__factory.connect(
-    constants.gelatoSender,
+  const gelatoCCTPSender = GelatoCCTPSender__factory.connect(
+    network.gelatoCCTPSender,
     runner
   );
 
-  // index all logs since last processed block
+  // check each task status
+  const tasks = await Promise.all(
+    taskIds.map((taskId) => getRelayTaskStatus(taskId))
+  );
+
+  // keep pending tasks and remove executed or failed tasks
+  // signal on failure (this could trigger an API call to notify the user)
+  taskIds = taskIds.filter((taskId, i) => {
+    const state = tasks[i]?.taskState;
+
+    if (
+      state === undefined ||
+      state === TaskState.CheckPending ||
+      state === TaskState.ExecPending ||
+      state === TaskState.WaitingForConfirmation
+    )
+      return true;
+
+    if (state !== TaskState.ExecSuccess) console.error("Task failed:", taskId);
+
+    console.log("Transfer complete:", taskId);
+    return false;
+  });
+
+  // index all events since last processed block
+  // the whole block range could be split into smaller ranges (max 10,000)
+  const circleMessageSents = await circleMessageTransmitter.queryFilter(
+    circleMessageTransmitter.filters.MessageSent,
+    lastBlock + 1,
+    currentBlock
+  );
+
+  const gelatoDepositForBurns = await gelatoCCTPSender.queryFilter(
+    gelatoCCTPSender.filters.DepositForBurn,
+    lastBlock + 1,
+    currentBlock
+  );
+
   // both MessageTransmitter and GelatoCCTPSender emit on depositForBurn
   // every GelatoCCTPSender event corresponds to a MessageTransmitter event
-  // but not every MessageTransmitter event corresponds to a GelatoCCTPSender
-  // we must merge these events together based on their transactionHash
-  const messages = await messageTransmitter.queryFilter(
-    messageTransmitter.filters.MessageSent,
-    fromBlock,
-    toBlock
-  );
+  // but not every MessageTransmitter event corresponds to a GelatoCCTPSender event
+  // we merge these events together based on their transactionHash
+  // ths can be optimised since events are in the same order
+  pending.push(
+    ...gelatoDepositForBurns.map((deposit) => {
+      const message = circleMessageSents.find(
+        (message) => message.transactionHash === deposit.transactionHash
+      )!;
 
-  const deposits = await gelatoSender.queryFilter(
-    gelatoSender.filters.DepositForBurn,
-    fromBlock,
-    toBlock
-  );
-
-  join(
-    messages,
-    deposits,
-    (a, b) => a.transactionHash === b.transactionHash,
-    (a, b): ITransfer => ({
-      owner: b.args.owner,
-      maxFee: b.args.maxFee,
-      domain: Number(b.args.domain),
-      message: a.args.message,
-      authorization: b.args.authorization,
+      return {
+        owner: deposit.args.owner,
+        maxFee: deposit.args.maxFee,
+        domain: Number(deposit.args.domain),
+        message: message.args.message,
+        authorization: deposit.args.authorization,
+      };
     })
-  ).forEach((x) => pending.push(x));
+  );
 
-  // iterate through pending transfers backwards
+  // attempt to fetch attestations for pending transfers
+  const attestations = await Promise.all(
+    pending.map((transfer) => {
+      const messageHash = ethers.keccak256(transfer.message);
+      return getAttestation(messageHash);
+    })
+  );
+
   // move executable transfers from pending to executable
   const executable: ITransferWithAttestation[] = [];
-  for (let i = pending.length - 1; i >= 0; i--) {
-    if (pending[i].domain !== constants.domain) continue;
+  pending = pending.filter((transfer, i) => {
+    const attestation = attestations[i];
 
-    const messageHash = ethers.keccak256(pending[i].message);
+    if (!attestation || transfer.domain !== network.domain) return true;
 
-    const { status, attestation } = (await ky
-      .get(`${CIRCLE_API}/attestations/${messageHash}`)
-      .json()) as IAttestation;
-
-    if (status !== AttestationStatus.Complete) continue;
-
-    executable.push({ ...pending[i], attestation });
-    pending.splice(i, 1);
-  }
+    executable.push({ ...transfer, attestation });
+    return false;
+  });
 
   // execute all executable transfers
-  // we initiate all requests and then await them
-  // this is more efficient than awaiting one at a time
-  await Promise.all(
+  // store their corresponding taskIds to manage their lifetime
+  const newTaskIds = await Promise.all(
     executable.map(async (transfer) => {
-      const tx = await gelatoReceiver.receiveMessage.populateTransaction(
-        transfer.owner,
-        transfer.maxFee,
-        transfer.message,
-        transfer.attestation,
-        transfer.authorization
-      );
+      const receiveMessage =
+        await gelatoCCTPReceiver.receiveMessage.populateTransaction(
+          transfer.owner,
+          transfer.maxFee,
+          transfer.message,
+          transfer.attestation,
+          transfer.authorization
+        );
 
-      const request: IRelayRequest = {
-        chainId: Number(chainId),
-        target: tx.to,
-        data: tx.data,
-        feeToken: constants.usdc,
-        retries: 0,
+      const request: CallWithSyncFeeRequest = {
+        chainId: BigInt(chainId),
+        target: receiveMessage.to,
+        data: receiveMessage.data,
+        feeToken: network.usdc,
       };
 
-      await ky
-        .post(`${GELATO_API}/relays/v2/call-with-sync-fee`, {
-          json: request,
-        })
-        .json();
+      const taskId = await postRelayRequest(request);
+
+      // move failed transfers back into pending
+      if (!taskId) pending.push(transfer);
+      return taskId;
     })
   );
 
-  // update pending transfers in storage
-  // move cursor to current block + 1 (don't want to index the same block)
+  taskIds.push(
+    ...newTaskIds.filter((taskId): taskId is string => taskId !== null)
+  );
+
+  // update storage
+  await context.storage.set("tasks", JSON.stringify(taskIds));
   await context.storage.set("pending", JSON.stringify(pending));
-  await context.storage.set(chainId, (toBlock + 1).toString()); // what if in future?
+  await context.storage.set(chainId, currentBlock.toString());
 
-  console.log("indexed:", deposits.length);
-  console.log("executed:", executable.length);
-  console.log("pending:", pending.length);
+  const message =
+    `chainId: ${chainId}, ` +
+    `processed: ${currentBlock - lastBlock}, ` +
+    `indexed: ${gelatoDepositForBurns.length}, ` +
+    `executed: ${executable.length}, ` +
+    `confirming: ${taskIds.length}, ` +
+    `pending: ${pending.length}`;
 
-  return { canExec: false, message: "" };
+  return { canExec: false, message };
 });

@@ -12,16 +12,20 @@ const main = async () => {
   const [deployer] = await ethers.getSigners();
   const { chainId } = await ethers.provider.getNetwork();
 
+  // required since the automate-sdk uses ethers v5
+  (deployer as any)._isSigner = true;
+
   const automate = new AutomateSDK(Number(chainId), deployer as any);
 
   const trigger: TriggerConfig = {
     type: TriggerType.TIME,
-    interval: 60,
+    interval: 30000,
   };
 
   const { taskId, tx } = await automate.createBatchExecTask({
     name: "Gelato CCTP",
     web3FunctionHash: cctpCid,
+    web3FunctionArgs: {},
     useTreasury: false,
     trigger,
   });
