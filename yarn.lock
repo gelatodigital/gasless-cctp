@@ -576,12 +576,12 @@
     ethers "^5.5.2"
     siwe "^1.1.6"
 
-"@gelatonetwork/relay-context@3.1.1":
-  version "3.1.1"
-  resolved "https://registry.yarnpkg.com/@gelatonetwork/relay-context/-/relay-context-3.1.1.tgz#1920bc0083c8c763eadf53196ba2df8cf8e5add4"
-  integrity sha512-QAR9ZN5ovlvGTUlDSSAOE95Xs073NHbtrUF5bRCN6WWh1ldHD6xE4IyfP+0zokF2FlHyKyhpS96ISr7RT91zMg==
+"@gelatonetwork/relay-context@3.2.0":
+  version "3.2.0"
+  resolved "https://registry.yarnpkg.com/@gelatonetwork/relay-context/-/relay-context-3.2.0.tgz#1b62e3422f1aa79a1200e6916e6a421f779c3083"
+  integrity sha512-JuYzTi7ihgK0DmgXSHzI7Z86b0Si20qvdzmeUsq/pihlPPAkPD7RFpHX7fy8qz9UOgM+BVgUDiUwaAjahJNzqQ==
   dependencies:
-    "@openzeppelin/contracts" "4.8.3"
+    "@openzeppelin/contracts" "4.9.3"
 
 "@gelatonetwork/relay-sdk@5.2.0":
   version "5.2.0"
@@ -910,11 +910,6 @@
     "@nomicfoundation/solidity-analyzer-win32-arm64-msvc" "0.1.1"
     "@nomicfoundation/solidity-analyzer-win32-ia32-msvc" "0.1.1"
     "@nomicfoundation/solidity-analyzer-win32-x64-msvc" "0.1.1"
-
-"@openzeppelin/contracts@4.8.3":
-  version "4.8.3"
-  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.8.3.tgz#cbef3146bfc570849405f59cba18235da95a252a"
-  integrity sha512-bQHV8R9Me8IaJoJ2vPG4rXcL7seB7YVuskr4f+f5RyOStSZetwzkWtoqDMl5erkBJy0lDRUnIR2WIkPiC0GJlg==
 
 "@openzeppelin/contracts@4.9.3":
   version "4.9.3"
@@ -3290,10 +3285,10 @@ klaw@^1.0.0:
   optionalDependencies:
     graceful-fs "^4.1.9"
 
-ky@1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/ky/-/ky-1.0.0.tgz#7c2ee4995c73bc688513816f081549444c8962a6"
-  integrity sha512-ptUup6btycj2IXLL/L5Bh/QC9ghYC2k/BsnnSf0ccEap8FpCvJ32FL5s5Potb8NkH6HOTdnVGmyI1wkHZ3mfEQ==
+ky@1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/ky/-/ky-1.0.1.tgz#3b167f0bf75097240ffc5505e6b4f7b3be8161d0"
+  integrity sha512-UvcwpQO0LOuZwG0Ti3VDo6w57KYt+r4bWEYlNaMt82hgyFtse86QtOGum1RzsZni31FndXQl6NvtDArfunt2JQ==
 
 ky@^0.32.2:
   version "0.32.2"

@@ -78,17 +78,18 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
   // keep pending tasks and remove executed or failed tasks
   // signal on failure (this could trigger an API call to notify the user)
   taskIds = taskIds.filter((taskId, i) => {
-    const state = tasks[i]?.taskState;
+    const task = tasks[i];
+    if (!task) return true;
 
     if (
-      state === undefined ||
-      state === TaskState.CheckPending ||
-      state === TaskState.ExecPending ||
-      state === TaskState.WaitingForConfirmation
+      task.taskState === TaskState.CheckPending ||
+      task.taskState === TaskState.ExecPending ||
+      task.taskState === TaskState.WaitingForConfirmation
     )
       return true;
 
-    if (state !== TaskState.ExecSuccess) console.error("Task failed:", taskId);
+    if (task.taskState !== TaskState.ExecSuccess)
+      console.error("Task failed:", taskId);
 
     console.log("Transfer complete:", taskId);
     return false;
@@ -189,9 +190,8 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
     `chainId: ${chainId}, ` +
     `processed: ${currentBlock - lastBlock}, ` +
     `indexed: ${gelatoDepositForBurns.length}, ` +
-    `executed: ${executable.length}, ` +
     `confirming: ${taskIds.length}, ` +
-    `pending: ${pending.length}`;
+    `attesting: ${pending.length}`;
 
   return { canExec: false, message };
 });

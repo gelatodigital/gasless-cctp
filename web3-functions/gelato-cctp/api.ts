@@ -2,6 +2,7 @@ import { GELATO_API, CIRCLE_API } from "../../src/cctp-sdk/constants";
 import { CallWithSyncFeeRequest } from "@gelatonetwork/relay-sdk";
 import {
   IAttestation,
+  AttesationState,
   IRelayRequestResponse,
   IRelayTaskStatusResponse,
 } from "./types";
@@ -23,11 +24,13 @@ export const getRelayTaskStatus = async (taskId: string) => {
 };
 
 export const getAttestation = async (messageHash: string) => {
+  console.log(`${CIRCLE_API}/attestations/${messageHash}`);
+
   try {
-    const { attestation } = (await ky
+    const { status, attestation } = (await ky
       .get(`${CIRCLE_API}/attestations/${messageHash}`)
       .json()) as IAttestation;
-    return attestation || null;
+    return status === AttesationState.Complete ? attestation : null;
   } catch (e) {
     console.error("getAttestation:", getErrorMsg(e));
     return null;

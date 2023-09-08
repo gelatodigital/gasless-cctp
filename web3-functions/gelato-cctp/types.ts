@@ -7,8 +7,13 @@ export enum TaskState {
   WaitingForConfirmation = "WaitingForConfirmation",
 }
 
+export enum AttesationState {
+  Complete = "complete",
+}
+
 export interface IAttestation {
-  attestation?: string;
+  attestation: string;
+  status: AttesationState;
 }
 
 export interface ITransfer {
