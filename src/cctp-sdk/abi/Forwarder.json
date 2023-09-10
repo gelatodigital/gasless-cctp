@@ -1,4 +1,0 @@
-[
-  "function deposit(uint256,uint32,bytes calldata)",
-  "function withdraw(bytes calldata, bytes calldata, bytes calldata)"
-]
