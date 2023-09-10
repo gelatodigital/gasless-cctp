@@ -8,3 +8,4 @@ typechain-types
 dist
 cache
 artifacts
+.tmp

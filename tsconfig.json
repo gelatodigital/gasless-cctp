@@ -12,6 +12,6 @@
     "target": "ESNext"
   },
   "files": ["hardhat.config.ts"],
-  "include": ["scripts", "src", "tasks", "test", "deploy"],
+  "include": ["scripts", "src", "web3-functions", "tasks", "test", "deploy"],
   "exclude": ["node_modules"]
 }
