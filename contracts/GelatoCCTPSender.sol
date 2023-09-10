@@ -13,9 +13,9 @@ contract GelatoCCTPSender is GelatoRelayContextERC2771 {
     ITokenMessenger public immutable tokenMessenger;
 
     event DepositForBurn(
-        address owner,
+        address indexed owner,
         uint256 maxFee,
-        uint32 domain,
+        uint32 indexed domain,
         Authorization authorization
     );
 

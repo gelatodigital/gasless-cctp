@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { CONSTANTS, ChainId } from "./constants";
+import { NETWORKS, ChainId } from "./constants";
 import { AuthorizationStruct } from "../../typechain/contracts/GelatoCCTPSender";
 import {
   CallWithSyncFeeConcurrentERC2771Request,
@@ -16,19 +16,21 @@ export const transfer = async (
   signer: ethers.Wallet
 ): Promise<void> => {
   if (srcChainId === dstChainId)
-    throw new Error("Source and destination chain must be different");
+    throw new Error(
+      "cctp-sdk.transfer: Source and destination chain must be different"
+    );
 
   if (srcMaxFee + dstMaxFee > amount)
-    throw new Error("Max fee amount exceeds total amount");
+    throw new Error("cctp-sdk.transfer: Max fee amount exceeds total amount");
 
-  const src = CONSTANTS[srcChainId];
-  const dst = CONSTANTS[dstChainId];
+  const src = NETWORKS[srcChainId];
+  const dst = NETWORKS[dstChainId];
 
   const srcAuthorization = await buildAuthorization(
     signer,
     src.usdc,
     amount,
-    src.gelatoSender,
+    src.gelatoCCTPSender,
     srcChainId
   );
 
@@ -36,14 +38,14 @@ export const transfer = async (
     signer,
     dst.usdc,
     dstMaxFee,
-    dst.gelatoReceiver,
+    dst.gelatoCCTPReceiver,
     dstChainId
   );
 
   const relay = new GelatoRelay();
-  const gelatoSender = new ethers.Interface(GelatoCCTPSenderAbi);
+  const gelatoCCTPSender = new ethers.Interface(GelatoCCTPSenderAbi);
 
-  const depositForBurn = gelatoSender.encodeFunctionData("depositForBurn", [
+  const depositForBurn = gelatoCCTPSender.encodeFunctionData("depositForBurn", [
     amount,
     srcMaxFee,
     dstMaxFee,
@@ -54,7 +56,7 @@ export const transfer = async (
 
   const request: CallWithSyncFeeConcurrentERC2771Request = {
     chainId: BigInt(srcChainId),
-    target: src.gelatoSender,
+    target: src.gelatoCCTPSender,
     data: depositForBurn,
     user: signer.address,
     feeToken: src.usdc,
@@ -98,7 +100,7 @@ const buildAuthorization = async (
   const args = {
     from: signer.address,
     to,
-    value: value,
+    value,
     validAfter,
     validBefore,
     nonce,

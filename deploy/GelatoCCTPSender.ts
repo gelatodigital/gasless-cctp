@@ -1,5 +1,5 @@
 import { DeployFunction } from "hardhat-deploy/types";
-import { CONSTANTS, ChainId } from "../src/cctp-sdk/constants";
+import { NETWORKS, ChainId } from "../src/cctp-sdk/constants";
 import hre from "hardhat";
 
 const isHardhat = hre.network.name === "hardhat";
@@ -7,13 +7,13 @@ const isHardhat = hre.network.name === "hardhat";
 const func: DeployFunction = async () => {
   const chainId = await hre.getChainId();
   const accounts = await hre.getNamedAccounts();
-  const constants = CONSTANTS[Number(chainId) as ChainId];
+  const network = NETWORKS[Number(chainId) as ChainId];
 
-  if (!constants) throw new Error("Unsupported network");
+  if (!network) throw new Error("Unsupported network");
 
   await hre.deployments.deploy("GelatoCCTPSender", {
     from: accounts.deployer,
-    args: [constants.usdc, constants.tokenMessenger],
+    args: [network.usdc, network.circleTokenMessenger],
     log: !isHardhat,
   });
 };

@@ -1,13 +1,19 @@
 import { AuthorizationStruct } from "../../typechain/contracts/GelatoCCTPReceiver";
 
-export enum AttestationStatus {
-  Pending = "pending",
+export enum TaskState {
+  CheckPending = "CheckPending",
+  ExecPending = "ExecPending",
+  ExecSuccess = "ExecSuccess",
+  WaitingForConfirmation = "WaitingForConfirmation",
+}
+
+export enum AttesationState {
   Complete = "complete",
 }
 
 export interface IAttestation {
-  status: AttestationStatus;
   attestation: string;
+  status: AttesationState;
 }
 
 export interface ITransfer {
@@ -22,10 +28,14 @@ export interface ITransferWithAttestation extends ITransfer {
   attestation: string;
 }
 
-export interface IRelayRequest {
-  chainId: number;
-  target: string;
-  data: string;
-  feeToken: string;
-  retries?: number;
+export interface IRelayRequestResponse {
+  taskId: string;
+}
+
+export interface IRelayTaskStatus {
+  taskState: TaskState;
+}
+
+export interface IRelayTaskStatusResponse {
+  task: IRelayTaskStatus;
 }

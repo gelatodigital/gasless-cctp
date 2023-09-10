@@ -6,7 +6,7 @@ const main = async () => {
   const PRIVATE_KEY = process.env.PRIVATE_KEY;
   if (!PRIVATE_KEY) throw new Error("PRIVATE_KEY missing in .env");
 
-  // provider is essentially a placeholder
+  // provider is a placeholder
   const wallet = new ethers.Wallet(PRIVATE_KEY, ethers.provider);
 
   await transfer(
