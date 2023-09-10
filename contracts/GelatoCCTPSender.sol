@@ -12,6 +12,13 @@ contract GelatoCCTPSender is GelatoRelayContextERC2771 {
     IEIP3009Token public immutable token;
     ITokenMessenger public immutable tokenMessenger;
 
+    event DepositForBurn(
+        address indexed owner,
+        uint256 maxFee,
+        uint32 indexed domain,
+        Authorization authorization
+    );
+
     constructor(IEIP3009Token _token, ITokenMessenger _tokenMessenger) {
         token = _token;
         tokenMessenger = _tokenMessenger;
@@ -19,9 +26,11 @@ contract GelatoCCTPSender is GelatoRelayContextERC2771 {
 
     function depositForBurn(
         uint256 _value,
-        uint256 _maxGelatoFee,
-        uint32 _destinationDomain,
-        Authorization calldata _authorization
+        uint256 _srcMaxFee,
+        uint256 _dstMaxFee,
+        uint32 _dstDomain,
+        Authorization calldata _srcAuthorization,
+        Authorization calldata _dstAuthorization
     ) external onlyGelatoRelayERC2771 {
         address owner = _getMsgSender();
 
@@ -29,25 +38,27 @@ contract GelatoCCTPSender is GelatoRelayContextERC2771 {
             owner,
             address(this),
             _value,
-            _authorization.validAfter,
-            _authorization.validBefore,
-            _authorization.nonce,
-            _authorization.v,
-            _authorization.r,
-            _authorization.s
+            _srcAuthorization.validAfter,
+            _srcAuthorization.validBefore,
+            _srcAuthorization.nonce,
+            _srcAuthorization.v,
+            _srcAuthorization.r,
+            _srcAuthorization.s
         );
 
-        _transferRelayFeeCapped(_maxGelatoFee);
+        _transferRelayFeeCapped(_srcMaxFee);
 
         uint256 remaining = _value - _getFee();
         token.approve(address(tokenMessenger), remaining);
 
         tokenMessenger.depositForBurn(
             remaining,
-            _destinationDomain,
+            _dstDomain,
             _addressToBytes32(owner),
             address(token)
         );
+
+        emit DepositForBurn(owner, _dstMaxFee, _dstDomain, _dstAuthorization);
     }
 
     function _addressToBytes32(address addr) internal pure returns (bytes32) {

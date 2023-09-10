@@ -19,7 +19,7 @@ contract GelatoCCTPReceiver is GelatoRelayContext {
 
     function receiveMessage(
         address _owner,
-        uint256 _maxGelatoFee,
+        uint256 _maxFee,
         bytes calldata _message,
         bytes calldata _attestation,
         Authorization calldata _authorization
@@ -29,7 +29,7 @@ contract GelatoCCTPReceiver is GelatoRelayContext {
         token.receiveWithAuthorization(
             _owner,
             address(this),
-            _maxGelatoFee,
+            _maxFee,
             _authorization.validAfter,
             _authorization.validBefore,
             _authorization.nonce,
@@ -40,7 +40,7 @@ contract GelatoCCTPReceiver is GelatoRelayContext {
 
         _transferRelayFee();
 
-        uint256 remaining = _maxGelatoFee - _getFee();
+        uint256 remaining = _maxFee - _getFee();
         token.transfer(_owner, remaining);
     }
 }

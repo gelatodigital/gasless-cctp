@@ -1,27 +1,24 @@
-import { deployments, getChainId, getNamedAccounts } from "hardhat";
 import { DeployFunction } from "hardhat-deploy/types";
-import { ADDRESSES } from "../shared/constants";
+import { NETWORKS, ChainId } from "../src/cctp-sdk/constants";
+import hre from "hardhat";
 
-const name = "GelatoCCTPReceiver";
+const isHardhat = hre.network.name === "hardhat";
 
 const func: DeployFunction = async () => {
-  const { deploy } = deployments;
-  const { deployer } = await getNamedAccounts();
+  const chainId = await hre.getChainId();
+  const accounts = await hre.getNamedAccounts();
+  const network = NETWORKS[Number(chainId) as ChainId];
 
-  const chainId = await getChainId();
-  const address = ADDRESSES[chainId];
+  if (!network) throw new Error("Unsupported network");
 
-  if (!address) throw new Error("Unsupported network");
-
-  const { usdc, messageTransmitter } = address;
-
-  await deploy(name, {
-    from: deployer,
-    args: [usdc, messageTransmitter],
-    log: true,
+  await hre.deployments.deploy("GelatoCCTPReceiver", {
+    from: accounts.deployer,
+    args: [network.usdc, network.circleMessageTransmitter],
+    log: !isHardhat,
   });
 };
 
-func.tags = [name];
+func.tags = ["GelatoCCTPReceiver"];
+func.skip = async () => !isHardhat;
 
 export default func;
