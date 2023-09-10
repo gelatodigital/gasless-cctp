@@ -1,127 +1,71 @@
 import { ethers } from "ethers";
-import { jetch, poll } from "./helper";
-import { CIRCLE_API, GELATO_API, CHAIN } from "./constants";
+import { NETWORKS, ChainId } from "./constants";
+import { AuthorizationStruct } from "../../typechain/contracts/GelatoCCTPSender";
 import {
-  CallWithSyncFeeERC2771Request,
-  CallWithSyncFeeRequest,
-  RelayResponse,
+  CallWithSyncFeeConcurrentERC2771Request,
   GelatoRelay,
 } from "@gelatonetwork/relay-sdk";
-import {
-  TaskState,
-  TaskStatus,
-  AttestationState,
-  AttestationStatus,
-  Authorization,
-} from "./types";
 import GelatoCCTPSenderAbi from "./abi/GelatoCCTPSender.json";
-import GelatoCCTPReceiverAbi from "./abi/GelatoCCTPReceiver.json";
 
 export const transfer = async (
   amount: bigint,
   srcMaxFee: bigint,
   dstMaxFee: bigint,
-  dstChainId: bigint,
+  srcChainId: ChainId,
+  dstChainId: ChainId,
   signer: ethers.Wallet
 ): Promise<void> => {
-  if (srcMaxFee + dstMaxFee > amount)
-    throw new Error("Max fee amount exceeds total amount");
-
-  const provider = signer.provider;
-  if (!provider) throw new Error("Signer missing provider");
-
-  const { chainId: srcChainId } = await provider.getNetwork();
   if (srcChainId === dstChainId)
-    throw new Error("Source and destination chain must be different");
+    throw new Error(
+      "cctp-sdk.transfer: Source and destination chain must be different"
+    );
 
-  const srcChain = CHAIN[srcChainId.toString()];
-  const dstChain = CHAIN[dstChainId.toString()];
+  if (srcMaxFee + dstMaxFee > amount)
+    throw new Error("cctp-sdk.transfer: Max fee amount exceeds total amount");
 
-  if (!srcChain || !dstChain) throw new Error("Unsupported chain");
+  const src = NETWORKS[srcChainId];
+  const dst = NETWORKS[dstChainId];
 
   const srcAuthorization = await buildAuthorization(
     signer,
-    srcChain.usdc,
+    src.usdc,
     amount,
-    srcChain.sender,
+    src.gelatoCCTPSender,
     srcChainId
   );
 
   const dstAuthorization = await buildAuthorization(
     signer,
-    dstChain.usdc,
+    dst.usdc,
     dstMaxFee,
-    dstChain.receiver,
+    dst.gelatoCCTPReceiver,
     dstChainId
   );
 
   const relay = new GelatoRelay();
+  const gelatoCCTPSender = new ethers.Interface(GelatoCCTPSenderAbi);
 
-  const gelatoSender = new ethers.Interface(GelatoCCTPSenderAbi);
-  const gelatoReceiver = new ethers.Interface(GelatoCCTPReceiverAbi);
-
-  const depositForBurn = gelatoSender.encodeFunctionData("depositForBurn", [
+  const depositForBurn = gelatoCCTPSender.encodeFunctionData("depositForBurn", [
     amount,
     srcMaxFee,
-    dstChain.domain,
-    srcAuthorization,
-  ]);
-
-  const tx = await relayAndWait(
-    relay,
-    srcChain.sender,
-    depositForBurn,
-    srcChainId,
-    srcChain.usdc,
-    signer
-  );
-
-  const receipt = await poll(
-    () => provider.getTransactionReceipt(tx),
-    (receipt) => receipt !== null,
-    1_000,
-    30 * 1_000
-  );
-
-  if (!receipt) throw new Error("Failed to find transaction receipt");
-
-  const topic = ethers.solidityPackedKeccak256(
-    ["string"],
-    ["MessageSent(bytes)"]
-  );
-
-  const log = receipt.logs.find((x) => x.topics[0] === topic);
-  if (!log) throw new Error("Failed to find message event");
-
-  const [messageBytes] = ethers.AbiCoder.defaultAbiCoder().decode(
-    ["bytes"],
-    log.data
-  );
-
-  const messageHash = ethers.keccak256(messageBytes);
-
-  const { attestation } = await poll<AttestationStatus>(
-    () => jetch(`${CIRCLE_API}/attestations/${messageHash}`),
-    ({ status }) => status === AttestationState.Complete,
-    30 * 1_000,
-    30 * 60 * 1_000
-  );
-
-  const receiveMessage = gelatoReceiver.encodeFunctionData("receiveMessage", [
-    signer.address,
     dstMaxFee,
-    messageBytes,
-    attestation,
+    dst.domain,
+    srcAuthorization,
     dstAuthorization,
   ]);
 
-  await relayAndWait(
-    relay,
-    dstChain.receiver,
-    receiveMessage,
-    dstChainId,
-    dstChain.usdc
-  );
+  const request: CallWithSyncFeeConcurrentERC2771Request = {
+    chainId: BigInt(srcChainId),
+    target: src.gelatoCCTPSender,
+    data: depositForBurn,
+    user: signer.address,
+    feeToken: src.usdc,
+    isConcurrent: true,
+  };
+
+  await relay.callWithSyncFeeERC2771(request, signer, {
+    retries: 0,
+  });
 };
 
 const buildAuthorization = async (
@@ -129,8 +73,8 @@ const buildAuthorization = async (
   token: string,
   value: bigint,
   to: string,
-  chainId: bigint
-): Promise<Authorization> => {
+  chainId: number
+): Promise<AuthorizationStruct> => {
   const domain: ethers.TypedDataDomain = {
     name: "USD Coin",
     version: "2",
@@ -156,7 +100,7 @@ const buildAuthorization = async (
   const args = {
     from: signer.address,
     to,
-    value: value,
+    value,
     validAfter,
     validBefore,
     nonce,
@@ -173,73 +117,4 @@ const buildAuthorization = async (
     r,
     s,
   };
-};
-
-const relayAndWait = async (
-  relay: GelatoRelay,
-  target: string,
-  data: string,
-  chainId: bigint,
-  feeToken: string,
-  signer?: ethers.Wallet
-): Promise<string> => {
-  const { taskId } = await (signer
-    ? callWithSyncFeeERC2771(relay, target, data, chainId, feeToken, signer)
-    : callWithSyncFee(relay, target, data, chainId, feeToken));
-
-  const { task } = await poll<TaskStatus>(
-    () => jetch(GELATO_API + "/tasks/status/" + taskId),
-    ({ task }) =>
-      task.taskState === TaskState.Success ||
-      task.taskState === TaskState.Cancelled,
-    1000,
-    10 * 60 * 1_000
-  );
-
-  if (task.taskState !== TaskState.Success)
-    throw new Error("Failed to relay transaction");
-
-  return task.transactionHash;
-};
-
-const callWithSyncFee = (
-  relay: GelatoRelay,
-  target: string,
-  data: string,
-  chainId: bigint,
-  feeToken: string
-): Promise<RelayResponse> => {
-  const request: CallWithSyncFeeRequest = {
-    chainId,
-    target,
-    data,
-    feeToken,
-    isRelayContext: true,
-  };
-
-  return relay.callWithSyncFee(request, {
-    retries: 0,
-  });
-};
-
-const callWithSyncFeeERC2771 = (
-  relay: GelatoRelay,
-  target: string,
-  data: string,
-  chainId: bigint,
-  feeToken: string,
-  signer: ethers.Wallet
-): Promise<RelayResponse> => {
-  const request: CallWithSyncFeeERC2771Request = {
-    chainId,
-    target,
-    data,
-    feeToken,
-    user: signer.address,
-    isRelayContext: true,
-  };
-
-  return relay.callWithSyncFeeERC2771(request, signer, {
-    retries: 0,
-  });
 };
