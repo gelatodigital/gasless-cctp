@@ -1,20 +1,22 @@
-import { ethers } from "ethers";
 import { NETWORKS, ChainId } from "./constants";
-import { AuthorizationStruct } from "../../typechain/contracts/GelatoCCTPSender";
+import { IAuthorization, ISign } from "./types";
+import { TypedDataField, ethers } from "ethers";
 import {
-  CallWithSyncFeeConcurrentERC2771Request,
   GelatoRelay,
+  ERC2771Type,
+  CallWithConcurrentERC2771Request,
 } from "@gelatonetwork/relay-sdk";
 import GelatoCCTPSenderAbi from "./abi/GelatoCCTPSender.json";
 
 export const transfer = async (
+  owner: string,
   amount: bigint,
   srcMaxFee: bigint,
   dstMaxFee: bigint,
   srcChainId: ChainId,
   dstChainId: ChainId,
-  signer: ethers.Wallet
-): Promise<void> => {
+  signTypedData: ISign
+): Promise<string> => {
   if (srcChainId === dstChainId)
     throw new Error(
       "cctp-sdk.transfer: Source and destination chain must be different"
@@ -27,19 +29,21 @@ export const transfer = async (
   const dst = NETWORKS[dstChainId];
 
   const srcAuthorization = await buildAuthorization(
-    signer,
+    owner,
     src.usdc,
     amount,
     src.gelatoCCTPSender,
-    srcChainId
+    srcChainId,
+    signTypedData
   );
 
   const dstAuthorization = await buildAuthorization(
-    signer,
+    owner,
     dst.usdc,
     dstMaxFee,
     dst.gelatoCCTPReceiver,
-    dstChainId
+    dstChainId,
+    signTypedData
   );
 
   const relay = new GelatoRelay();
@@ -54,27 +58,49 @@ export const transfer = async (
     dstAuthorization,
   ]);
 
-  const request: CallWithSyncFeeConcurrentERC2771Request = {
+  const request: CallWithConcurrentERC2771Request = {
     chainId: BigInt(srcChainId),
     target: src.gelatoCCTPSender,
     data: depositForBurn,
-    user: signer.address,
-    feeToken: src.usdc,
+    user: owner,
     isConcurrent: true,
   };
 
-  await relay.callWithSyncFeeERC2771(request, signer, {
-    retries: 0,
-  });
+  const { struct, typedData } = await relay.getDataToSignERC2771(
+    request,
+    ERC2771Type.ConcurrentCallWithSyncFee
+  );
+
+  // eslint-disable-next-line
+  const { EIP712Domain: _, ...types } = typedData.types as Record<
+    string,
+    Array<TypedDataField>
+  >;
+
+  const signature = await signTypedData(
+    typedData.domain,
+    types,
+    typedData.message
+  );
+
+  const { taskId } = await relay.callWithSyncFeeERC2771WithSignature(
+    struct,
+    { feeToken: src.usdc },
+    signature,
+    { retries: 0 }
+  );
+
+  return taskId;
 };
 
 const buildAuthorization = async (
-  signer: ethers.Wallet,
+  owner: string,
   token: string,
   value: bigint,
   to: string,
-  chainId: number
-): Promise<AuthorizationStruct> => {
+  chainId: number,
+  signTypedData: ISign
+): Promise<IAuthorization> => {
   const domain: ethers.TypedDataDomain = {
     name: "USD Coin",
     version: "2",
@@ -98,7 +124,7 @@ const buildAuthorization = async (
   const nonce = ethers.randomBytes(32);
 
   const args = {
-    from: signer.address,
+    from: owner,
     to,
     value,
     validAfter,
@@ -106,8 +132,8 @@ const buildAuthorization = async (
     nonce,
   };
 
-  const sig = await signer.signTypedData(domain, types, args);
-  const { v, r, s } = ethers.Signature.from(sig);
+  const signature = await signTypedData(domain, types, args);
+  const { v, r, s } = ethers.Signature.from(signature);
 
   return {
     validAfter,

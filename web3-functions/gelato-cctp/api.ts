@@ -5,13 +5,16 @@ import {
   AttesationState,
   IRelayRequestResponse,
   IRelayTaskStatusResponse,
+  IRelayTaskStatus,
 } from "./types";
 import ky from "ky";
 
 const getErrorMsg = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
-export const getRelayTaskStatus = async (taskId: string) => {
+export const getRelayTaskStatus = async (
+  taskId: string
+): Promise<IRelayTaskStatus | null> => {
   try {
     const { task } = (await ky
       .get(`${GELATO_API}/tasks/status/${taskId}`)
@@ -23,9 +26,9 @@ export const getRelayTaskStatus = async (taskId: string) => {
   }
 };
 
-export const getAttestation = async (messageHash: string) => {
-  console.log(`${CIRCLE_API}/attestations/${messageHash}`);
-
+export const getAttestation = async (
+  messageHash: string
+): Promise<string | null> => {
   try {
     const { status, attestation } = (await ky
       .get(`${CIRCLE_API}/attestations/${messageHash}`)
@@ -37,7 +40,9 @@ export const getAttestation = async (messageHash: string) => {
   }
 };
 
-export const postRelayRequest = async (request: CallWithSyncFeeRequest) => {
+export const postCallWithSyncFee = async (
+  request: CallWithSyncFeeRequest
+): Promise<string | null> => {
   try {
     const { taskId } = (await ky
       .post(`${GELATO_API}/relays/v2/call-with-sync-fee`, {
@@ -46,7 +51,7 @@ export const postRelayRequest = async (request: CallWithSyncFeeRequest) => {
       .json()) as IRelayRequestResponse;
     return taskId;
   } catch (e) {
-    console.error("postRelayRequest:", getErrorMsg(e));
+    console.error("postCallWithSyncFee:", getErrorMsg(e));
     return null;
   }
 };

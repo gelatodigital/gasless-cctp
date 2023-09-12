@@ -11,6 +11,13 @@ export enum AttesationState {
   Complete = "complete",
 }
 
+export enum TransferState {
+  PendingAttestation = "PendingAttestation",
+  PendingRelayRequest = "PendingRelayRequest",
+  PendingConfirmation = "PendingConfirmation",
+  Confirmed = "Confirmed",
+}
+
 export interface IAttestation {
   attestation: string;
   status: AttesationState;
@@ -22,10 +29,10 @@ export interface ITransfer {
   domain: number;
   message: string;
   authorization: AuthorizationStruct;
-}
-
-export interface ITransferWithAttestation extends ITransfer {
-  attestation: string;
+  state: TransferState;
+  expiry: number;
+  attestation?: string;
+  taskId?: string;
 }
 
 export interface IRelayRequestResponse {

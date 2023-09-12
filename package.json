@@ -1,7 +1,7 @@
 {
-  "name": "relay-gasless-cctp",
+  "name": "gasless-cctp",
   "version": "1.0.0",
-  "description": "Gasless Cross Chain Transfer Protocol powered by Gelato Relay",
+  "description": "Automated & Gasless Cross Chain Transfer Protocol",
   "scripts": {
     "build": "yarn install && yarn compile && npx tsc",
     "clean": "yarn hardhat clean && rm -rf dist",
