@@ -1,18 +1,20 @@
-import { NETWORKS } from "../../src/cctp-sdk/constants";
+import { ITransfer, TaskState, TransferState } from "./types";
+import { getAttestation, getRelayTaskStatus, postCallWithSyncFee } from "./api";
 import { CallWithSyncFeeRequest } from "@gelatonetwork/relay-sdk";
-import { ITransferWithAttestation, ITransfer, TaskState } from "./types";
-import { getAttestation, getRelayTaskStatus, postRelayRequest } from "./api";
+import { ChainId, NETWORKS } from "../../src/cctp-sdk/constants";
+import { timeout } from "./constants";
 import { ethers } from "ethers";
 import {
   Web3Function,
   Web3FunctionContext,
 } from "@gelatonetwork/web3-functions-sdk";
 import {
+  IMessageTransmitter__factory,
   GelatoCCTPReceiver__factory,
   GelatoCCTPSender__factory,
-  IMessageTransmitter__factory,
 } from "../../typechain";
 
+// eslint-disable-next-line
 (BigInt.prototype as any).toJSON = function () {
   return this.toString();
 };
@@ -32,7 +34,7 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
   const provider = await context.multiChainProvider.chainId(Number(chainId));
 
   // event indexing contains no reorg protection
-  // this can be implemented via block confirmations
+  // todo: implemented via block confirmations or use event based trigger
   const currentBlock = await provider.getBlockNumber();
   const lastBlockStr = await context.storage.get(chainId);
   const lastBlock = lastBlockStr ? Number(lastBlockStr) : currentBlock;
@@ -45,14 +47,14 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
   if (currentBlock === lastBlock)
     return { canExec: false, message: "No blocks to index" };
 
-  // get existing pending transfers and relay tasks
-  const pendingStr = await context.storage.get("pending");
-  let pending: ITransfer[] = pendingStr ? JSON.parse(pendingStr) : [];
-
-  const taskIdsStr = await context.storage.get("tasks");
-  let taskIds: string[] = taskIdsStr ? JSON.parse(taskIdsStr) : [];
+  // get stored transfer requests
+  const transferRequestsStr = await context.storage.get("transfers");
+  const transferRequests: ITransfer[] = transferRequestsStr
+    ? JSON.parse(transferRequestsStr)
+    : [];
 
   // instantiate all contracts on the current network
+  // eslint-disable-next-line
   const runner = { provider: provider as any };
 
   const circleMessageTransmitter = IMessageTransmitter__factory.connect(
@@ -70,33 +72,38 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
     runner
   );
 
-  // check each task status
-  const tasks = await Promise.all(
-    taskIds.map((taskId) => getRelayTaskStatus(taskId))
+  // query the state of all relayed transfers and mark successful transfers as confirmed
+  // retry failed transfers by marking them as pending relay request
+  // the relay request will be resubmitted
+  await Promise.all(
+    transferRequests.map(async (transfer, index): Promise<void> => {
+      if (
+        transfer.state !== TransferState.PendingConfirmation ||
+        !transfer.taskId
+      )
+        return;
+
+      const taskStatus = await getRelayTaskStatus(transfer.taskId);
+      if (!taskStatus) return;
+
+      if (
+        taskStatus.taskState === TaskState.CheckPending ||
+        taskStatus.taskState === TaskState.ExecPending ||
+        taskStatus.taskState === TaskState.WaitingForConfirmation
+      )
+        return;
+
+      if (taskStatus.taskState === TaskState.ExecSuccess)
+        transferRequests[index].state = TransferState.Confirmed;
+      else {
+        console.error("Retrying transfer:", transfer.taskId);
+        transferRequests[index].state = TransferState.PendingRelayRequest;
+      }
+    })
   );
 
-  // keep pending tasks and remove executed or failed tasks
-  // signal on failure (this could trigger an API call to notify the user)
-  taskIds = taskIds.filter((taskId, i) => {
-    const task = tasks[i];
-    if (!task) return true;
-
-    if (
-      task.taskState === TaskState.CheckPending ||
-      task.taskState === TaskState.ExecPending ||
-      task.taskState === TaskState.WaitingForConfirmation
-    )
-      return true;
-
-    if (task.taskState !== TaskState.ExecSuccess)
-      console.error("Task failed:", taskId);
-
-    console.log("Transfer complete:", taskId);
-    return false;
-  });
-
   // index all events since last processed block
-  // the whole block range could be split into smaller ranges (max 10,000)
+  // todo: split whole block range into smaller subranges (max 10,000)
   const circleMessageSents = await circleMessageTransmitter.queryFilter(
     circleMessageTransmitter.filters.MessageSent,
     lastBlock + 1,
@@ -114,8 +121,8 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
   // but not every MessageTransmitter event corresponds to a GelatoCCTPSender event
   // we merge these events together based on their transactionHash
   // ths can be optimised since events are in the same order
-  pending.push(
-    ...gelatoDepositForBurns.map((deposit) => {
+  const indexedTransferRequests = gelatoDepositForBurns.map(
+    (deposit): ITransfer => {
       const message = circleMessageSents.find(
         (message) => message.transactionHash === deposit.transactionHash
       )!;
@@ -126,33 +133,41 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
         domain: Number(deposit.args.domain),
         message: message.args.message,
         authorization: deposit.args.authorization,
+        state: TransferState.PendingAttestation,
+        expiry: Date.now() + timeout,
       };
-    })
+    }
   );
 
-  // attempt to fetch attestations for pending transfers
-  const attestations = await Promise.all(
-    pending.map((transfer) => {
+  // add newly indexed transfer requests to transfer requests
+  transferRequests.push(...indexedTransferRequests);
+
+  // fetch attestations for transfers pending attestation
+  await Promise.all(
+    transferRequests.map(async (transfer, index): Promise<void> => {
+      if (transfer.state !== TransferState.PendingAttestation) return;
+
       const messageHash = ethers.keccak256(transfer.message);
-      return getAttestation(messageHash);
+      const attestation = await getAttestation(messageHash);
+
+      if (!attestation) return;
+
+      transferRequests[index].attestation = attestation;
+      transferRequests[index].state = TransferState.PendingRelayRequest;
     })
   );
-
-  // move executable transfers from pending to executable
-  const executable: ITransferWithAttestation[] = [];
-  pending = pending.filter((transfer, i) => {
-    const attestation = attestations[i];
-
-    if (!attestation || transfer.domain !== network.domain) return true;
-
-    executable.push({ ...transfer, attestation });
-    return false;
-  });
 
   // execute all executable transfers
   // store their corresponding taskIds to manage their lifetime
-  const newTaskIds = await Promise.all(
-    executable.map(async (transfer) => {
+  await Promise.all(
+    transferRequests.map(async (transfer, index): Promise<void> => {
+      if (
+        transfer.state !== TransferState.PendingRelayRequest ||
+        transfer.domain !== network.domain ||
+        !transfer.attestation
+      )
+        return;
+
       const receiveMessage =
         await gelatoCCTPReceiver.receiveMessage.populateTransaction(
           transfer.owner,
@@ -169,29 +184,50 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
         feeToken: network.usdc,
       };
 
-      const taskId = await postRelayRequest(request);
+      const taskId = await postCallWithSyncFee(request);
+      if (!taskId) return;
 
-      // move failed transfers back into pending
-      if (!taskId) pending.push(transfer);
-      return taskId;
+      transferRequests[index].taskId = taskId;
+      transferRequests[index].state = TransferState.PendingConfirmation;
     })
   );
 
-  taskIds.push(
-    ...newTaskIds.filter((taskId): taskId is string => taskId !== null)
+  // filter out confirmed and expired transfers
+  const remainingTransferRequests = transferRequests.filter(
+    (transfer) =>
+      transfer.state !== TransferState.Confirmed && transfer.expiry > Date.now()
   );
 
-  // update storage
-  await context.storage.set("tasks", JSON.stringify(taskIds));
-  await context.storage.set("pending", JSON.stringify(pending));
+  // store remaining transfer requests
+  await context.storage.set(
+    "transfers",
+    JSON.stringify(remainingTransferRequests)
+  );
+
+  // store the last processed block
   await context.storage.set(chainId, currentBlock.toString());
 
+  // get the number of transfers in a given state
+  const stateCount = transferRequests.reduce(
+    (prev, transfer) => {
+      prev[transfer.state]++;
+      return prev;
+    },
+    {
+      Confirmed: 0,
+      PendingAttestation: 0,
+      PendingConfirmation: 0,
+      PendingRelayRequest: 0,
+    } as { [key in TransferState]: number }
+  );
+
   const message =
-    `chainId: ${chainId}, ` +
+    `network: ${ChainId[Number(chainId) as ChainId]}, ` +
     `processed: ${currentBlock - lastBlock}, ` +
     `indexed: ${gelatoDepositForBurns.length}, ` +
-    `confirming: ${taskIds.length}, ` +
-    `attesting: ${pending.length}`;
+    `attesting: ${stateCount[TransferState.PendingAttestation]}, ` +
+    `executed: ${stateCount[TransferState.PendingConfirmation]}, ` +
+    `confirmed: ${stateCount[TransferState.Confirmed]}`;
 
   return { canExec: false, message };
 });

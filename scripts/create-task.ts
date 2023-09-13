@@ -13,8 +13,10 @@ const main = async () => {
   const { chainId } = await ethers.provider.getNetwork();
 
   // required since the automate-sdk uses ethers v5
+  // eslint-disable-next-line
   (deployer as any)._isSigner = true;
 
+  // eslint-disable-next-line
   const automate = new AutomateSDK(Number(chainId), deployer as any);
 
   const trigger: TriggerConfig = {
