@@ -2,7 +2,7 @@ import { ITransfer, TaskState, TransferState } from "./types";
 import { getAttestation, getRelayTaskStatus, postCallWithSyncFee } from "./api";
 import { CallWithSyncFeeRequest } from "@gelatonetwork/relay-sdk";
 import { ChainId, NETWORKS } from "../../src/cctp-sdk/constants";
-import { timeout } from "./constants";
+import { TWO_HOURS } from "./constants";
 import { ethers } from "ethers";
 import {
   Web3Function,
@@ -76,14 +76,14 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
   // retry failed transfers by marking them as pending relay request
   // the relay request will be resubmitted
   await Promise.all(
-    transferRequests.map(async (transfer, index): Promise<void> => {
+    transferRequests.map(async (transferRequest, index): Promise<void> => {
       if (
-        transfer.state !== TransferState.PendingConfirmation ||
-        !transfer.taskId
+        transferRequest.state !== TransferState.PendingConfirmation ||
+        !transferRequest.taskId
       )
         return;
 
-      const taskStatus = await getRelayTaskStatus(transfer.taskId);
+      const taskStatus = await getRelayTaskStatus(transferRequest.taskId);
       if (!taskStatus) return;
 
       if (
@@ -96,7 +96,7 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
       if (taskStatus.taskState === TaskState.ExecSuccess)
         transferRequests[index].state = TransferState.Confirmed;
       else {
-        console.error("Retrying transfer:", transfer.taskId);
+        console.error("Retrying transfer:", transferRequest.taskId);
         transferRequests[index].state = TransferState.PendingRelayRequest;
       }
     })
@@ -134,7 +134,7 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
         message: message.args.message,
         authorization: deposit.args.authorization,
         state: TransferState.PendingAttestation,
-        expiry: Date.now() + timeout,
+        expiry: Date.now() + TWO_HOURS,
       };
     }
   );
@@ -144,10 +144,10 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
 
   // fetch attestations for transfers pending attestation
   await Promise.all(
-    transferRequests.map(async (transfer, index): Promise<void> => {
-      if (transfer.state !== TransferState.PendingAttestation) return;
+    transferRequests.map(async (transferRequest, index): Promise<void> => {
+      if (transferRequest.state !== TransferState.PendingAttestation) return;
 
-      const messageHash = ethers.keccak256(transfer.message);
+      const messageHash = ethers.keccak256(transferRequest.message);
       const attestation = await getAttestation(messageHash);
 
       if (!attestation) return;
@@ -160,21 +160,21 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
   // execute all executable transfers
   // store their corresponding taskIds to manage their lifetime
   await Promise.all(
-    transferRequests.map(async (transfer, index): Promise<void> => {
+    transferRequests.map(async (transferRequest, index): Promise<void> => {
       if (
-        transfer.state !== TransferState.PendingRelayRequest ||
-        transfer.domain !== network.domain ||
-        !transfer.attestation
+        transferRequest.state !== TransferState.PendingRelayRequest ||
+        transferRequest.domain !== network.domain ||
+        !transferRequest.attestation
       )
         return;
 
       const receiveMessage =
         await gelatoCCTPReceiver.receiveMessage.populateTransaction(
-          transfer.owner,
-          transfer.maxFee,
-          transfer.message,
-          transfer.attestation,
-          transfer.authorization
+          transferRequest.owner,
+          transferRequest.maxFee,
+          transferRequest.message,
+          transferRequest.attestation,
+          transferRequest.authorization
         );
 
       const request: CallWithSyncFeeRequest = {
@@ -194,8 +194,9 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
 
   // filter out confirmed and expired transfers
   const remainingTransferRequests = transferRequests.filter(
-    (transfer) =>
-      transfer.state !== TransferState.Confirmed && transfer.expiry > Date.now()
+    (transferRequest) =>
+      transferRequest.state !== TransferState.Confirmed &&
+      transferRequest.expiry > Date.now()
   );
 
   // store remaining transfer requests
@@ -209,8 +210,8 @@ Web3Function.onRun(async (context: Web3FunctionContext) => {
 
   // get the number of transfers in a given state
   const stateCount = transferRequests.reduce(
-    (prev, transfer) => {
-      prev[transfer.state]++;
+    (prev, transferRequest) => {
+      prev[transferRequest.state]++;
       return prev;
     },
     {
