@@ -8,6 +8,8 @@ import {
 } from "@gelatonetwork/relay-sdk";
 import GelatoCCTPSenderAbi from "./abi/GelatoCCTPSender.json";
 
+export { ChainId };
+
 export const transfer = async (
   owner: string,
   amount: bigint,

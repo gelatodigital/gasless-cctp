@@ -1,6 +1,5 @@
 import { ethers } from "ethers";
-import { transfer } from "../src/cctp-sdk";
-import { ChainId } from "../src/cctp-sdk/constants";
+import { transfer, ChainId } from "../src/cctp-sdk";
 
 const main = async () => {
   const PRIVATE_KEY = process.env.PRIVATE_KEY;
@@ -8,21 +7,14 @@ const main = async () => {
 
   const wallet = new ethers.Wallet(PRIVATE_KEY);
 
-  const signTypedData = async (
-    domain: ethers.TypedDataDomain,
-    types: Record<string, Array<ethers.TypedDataField>>,
-    // eslint-disable-next-line
-    value: Record<string, any>
-  ): Promise<string> => wallet.signTypedData(domain, types, value);
-
   const taskId = await transfer(
     wallet.address,
-    ethers.parseUnits("3", 6),
+    ethers.parseUnits("10", 6),
     ethers.parseUnits("1", 6),
     ethers.parseUnits("1", 6),
     ChainId.Avalanche,
     ChainId.Arbitrum,
-    signTypedData
+    wallet.signTypedData.bind(wallet)
   );
 
   console.log("https://api.gelato.digital/tasks/status/" + taskId);
