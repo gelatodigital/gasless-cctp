@@ -48,7 +48,7 @@ Eliminating the dependence on native tokens gives us infinitely more freedom.
    [Code Snippet](https://github.com/gelatodigital/gasless-cctp/blob/main/src/cctp-sdk/index.ts#L88-L93)
 4. The Web3 Function indexes all events and periodically fetches attestation signatures from Circle.  
    [Code Snippet](https://github.com/gelatodigital/gasless-cctp/blob/main/web3-functions/gelato-cctp/index.ts#L105-L158)
-5. The Web3 Function relays a [`receiveMessage`](https://developers.circle.com/stablecoin/docs/cctp-messagetransmitter#receivemessage) transaction on the destination chain.  
+5. Once an attesation is issued, the Web3 Function relays a [`receiveMessage`](https://developers.circle.com/stablecoin/docs/cctp-messagetransmitter#receivemessage) transaction on the destination chain.  
    This uses the attestation signature in order to mint the burnt tokens 1:1.  
    [Code Snippet](https://github.com/gelatodigital/gasless-cctp/blob/main/web3-functions/gelato-cctp/index.ts#L160-L193)
 
