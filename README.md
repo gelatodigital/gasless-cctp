@@ -1,5 +1,5 @@
 # Gasless & Automated Cross-Chain Transfer Protocol
-This project demonstrates gasless & automated token transfer using [Circle's CCTP](https://developers.circle.com/stablecoin/docs) as well as [Gelato Relay](https://www.gelato.network/relay) and [Gelato Web3 Functions](https://beta.app.gelato.network/).
+This project demonstrates gasless & automated cross-chain token transfer using [Circle's CCTP](https://developers.circle.com/stablecoin/docs) as well as [Gelato Relay](https://www.gelato.network/relay) and [Gelato Web3 Functions](https://beta.app.gelato.network/).
 
 ## What is CCTP?
 *Cross-Chain Transfer Protocol (CCTP) is a permissionless on-chain utility that facilitates USDC transfers between blockchains via native burning and minting.*
