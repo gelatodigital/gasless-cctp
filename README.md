@@ -58,6 +58,8 @@ Eliminating the dependence on native tokens gives us infinitely more freedom.
 Intermediary [`GelatoCCTPSender`](https://github.com/gelatodigital/gasless-cctp/blob/main/contracts/GelatoCCTPSender.sol) and [`GelatoCCTPReceiver`](https://github.com/gelatodigital/gasless-cctp/blob/main/contracts/GelatoCCTPReceiver.sol) contracts facilitate relay fee payment.
 These are both deployed on each CCTP-compatible network allowing for any-any chain transfers.
 
+![Flow Diagram](https://i.gyazo.com/6c9ca5403beaf19b9702bcbdc6bf53ab.png)
+
 ## Implementation
 [Implementation](https://github.com/gelatodigital/gasless-cctp/blob/main/scripts/transfer.ts#L10-L18) is as simple as importing the [`cctp-sdk`](https://github.com/gelatodigital/gasless-cctp/tree/main/src/cctp-sdk) and calling `transfer`.
 
