@@ -4,6 +4,13 @@ import {
   TriggerConfig,
   TriggerType,
 } from "@gelatonetwork/automate-sdk";
+import { ChainId, NETWORKS } from "../src/cctp-sdk/constants";
+
+const gnosisChainId = ChainId.GnosisChain;
+
+const getNetworkDetails = (chainId: ChainId) => {
+  return NETWORKS[chainId];
+};
 
 const main = async () => {
   const cctpW3f = w3f.get("gelato-cctp");
@@ -11,6 +18,13 @@ const main = async () => {
 
   const [deployer] = await ethers.getSigners();
   const { chainId } = await ethers.provider.getNetwork();
+
+  if(chainId === gnosisChainId) {
+    cctpW3f.gelatoCCTPSender = getNetworkDetails(gnosisChainId).gelatoCCTPSender;
+    cctpW3f.gelatoCCTPReceiver = getNetworkDetails(gnosisChainId).gelatoCCTPReceiver;
+    cctpW3f.circleTokenMessenger = getNetworkDetails(gnosisChainId).circleTokenMessenger;
+    cctpW3f.usdc = getNetworkDetails(gnosisChainId).usdc;
+  }
 
   // required since the automate-sdk uses ethers v5
   // eslint-disable-next-line

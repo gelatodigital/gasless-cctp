@@ -1,3 +1,4 @@
+
 interface INetwork {
   domain: number;
   gelatoCCTPSender: string;
@@ -10,6 +11,7 @@ interface INetwork {
 export enum ChainId {
   Avalanche = 43114,
   Arbitrum = 42161,
+  GnosisChain = 44291, // Added GnosisChain id
 }
 
 export const NETWORKS: { [id in ChainId]: INetwork } = {
@@ -28,6 +30,14 @@ export const NETWORKS: { [id in ChainId]: INetwork } = {
     circleTokenMessenger: "0x19330d10D9Cc8751218eaf51E8885D058642E08A",
     circleMessageTransmitter: "0xC30362313FBBA5cf9163F0bb16a0e01f01A896ca",
     usdc: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+  },
+  [ChainId.GnosisChain]: { // Added GnosisChain details
+    domain: 2,
+    gelatoCCTPSender: "<GnosisChain_gelatoCCTPSender>",
+    gelatoCCTPReceiver: "<GnosisChain_gelatoCCTPReceiver>",
+    circleTokenMessenger: "<GnosisChain_circleTokenMessenger>",
+    circleMessageTransmitter: "<GnosisChain_circleMessageTransmitter>",
+    usdc: "<GnosisChain_usdc>",
   },
 };
 
