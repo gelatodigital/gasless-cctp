@@ -9,12 +9,14 @@ dotenv.config({ path: __dirname + "/.env" });
 
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const ETHERSCAN_KEY = process.env.ETHERSCAN_KEY;
+const GNOSIS_CHAIN_ID = process.env.GNOSIS_CHAIN_ID;
+const GNOSIS_RPC_URL = process.env.GNOSIS_RPC_URL;
 
 const config: HardhatUserConfig = {
   w3f: {
     rootDir: "./web3-functions",
     debug: false,
-    networks: ["avalanche", "arbitrum"],
+    networks: ["avalanche", "arbitrum", "gnosis"],
   },
   solidity: {
     compilers: [
@@ -45,6 +47,11 @@ const config: HardhatUserConfig = {
     arbitrum: {
       chainId: 42161,
       url: "https://rpc.ankr.com/arbitrum",
+      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
+    },
+    gnosis: {
+      chainId: GNOSIS_CHAIN_ID,
+      url: GNOSIS_RPC_URL,
       accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
     },
   },
