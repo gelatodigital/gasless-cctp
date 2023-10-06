@@ -12,7 +12,7 @@ const main = async () => {
     ethers.parseUnits("10", 6),
     ethers.parseUnits("1", 6),
     ethers.parseUnits("1", 6),
-    ChainId.Avalanche,
+    ChainId.GnosisChain,
     ChainId.Arbitrum,
     wallet.signTypedData.bind(wallet)
   );
